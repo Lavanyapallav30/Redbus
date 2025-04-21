@@ -1,0 +1,197 @@
+import time
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC    
+
+# Initializing Chrome WebDriver
+driver = webdriver.Chrome()
+
+# Creating WebDriverWait object
+wait = WebDriverWait(driver, 20)
+
+# Global lists to store route and bus details
+route_details = []
+bus_details = []
+
+def scrape_routes():
+    route_elements = driver.find_elements(By.CLASS_NAME, "route_link")
+    for element in route_elements:
+        try:
+            route_name = element.find_element(By.CLASS_NAME, "route").text
+            route_link = element.find_element(By.TAG_NAME, "a").get_attribute("href")
+            # Ensure we only append new routes
+            if not any(route['route_name'] == route_name for route in route_details):
+                route_details.append({
+                    "route_name": route_name,
+                    "route_link": route_link})
+        except Exception as e:
+            print(f"Error scraping route: {e}")
+            continue
+
+def next_page_operator(current_page):
+    try:
+        print(f"Trying to move to page {current_page + 1}")
+        time.sleep(2)
+
+        # Look for all page number buttons
+        page_buttons = driver.find_elements(By.XPATH, '//div[contains(@class, "DC_117_pageTabs")]')
+
+        for button in page_buttons:
+            try:
+                if button.text.strip() == str(current_page + 1):
+                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", button)
+                    time.sleep(1)
+                    button.click()
+                    
+                    # Wait for active tab to match
+                    wait.until(
+                        EC.text_to_be_present_in_element(
+                            (By.XPATH, '//div[contains(@class, "DC_117_pageTabs DC_117_pageActive")]'),
+                            str(current_page + 1)
+                        )
+                    )
+                    time.sleep(2)
+                    return True
+            except Exception as click_error:
+                print(f"Could not click page {current_page + 1}: {click_error}")
+
+        print(f"Page {current_page + 1} not found in pagination buttons.")
+        return False
+
+    except Exception as e:
+        print(f"Pagination ended or an error occurred. Exiting loop. Error: {e}")
+        return False
+
+def click_view_buses_buttons():
+    """
+    Clicks all 'View Buses' buttons.
+    """
+    try:
+        buttons = driver.find_elements(By.CSS_SELECTOR, "div[class='button']")
+        for i in range(len(buttons) - 1, -1, -1):
+            try:
+                button = buttons[i]
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", button)
+                time.sleep(1)
+                button.click()
+                time.sleep(3)
+            except Exception as e:
+                print(f"Error clicking button {i + 1}: {e}")
+    except Exception as e:
+        print(f"view_buses Error: {e}")
+
+def scroll_to_end():
+    """
+    Scrolls to the bottom until all private buses are loaded.
+    """
+    try:
+        prev_bus_count = 0
+        same_count_counter = 0
+        while True:
+            driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
+            time.sleep(3)
+            buses = driver.find_elements(By.XPATH, "//div[@class='travels lh-24 f-bold d-color']")
+            current_bus_count = len(buses)
+            if current_bus_count == prev_bus_count:
+                same_count_counter += 1
+                if same_count_counter >= 2:
+                    break
+            else:
+                same_count_counter = 0
+            prev_bus_count = current_bus_count
+    except Exception as e:
+        print(f"scroll_to_end Error: {e}")
+
+def scrape_bus_details(link, name):
+    """
+    Scrapes all bus info: government and private.
+    """
+    try:
+        bus_names = driver.find_elements(By.XPATH, "//div[@class='travels lh-24 f-bold d-color']")
+        bus_types = driver.find_elements(By.XPATH, "//div[@class='bus-type f-12 m-top-16 l-color evBus']")
+        departing_times = driver.find_elements(By.XPATH, "//div[@class='dp-time f-19 d-color f-bold']")
+        durations = driver.find_elements(By.XPATH, "//div[@class='dur l-color lh-24']")
+        reaching_times = driver.find_elements(By.XPATH, "//div[@class='bp-time f-19 d-color disp-Inline']")
+        star_ratings = driver.find_elements(By.XPATH, "//div[@class='rating-sec lh-24']")
+        prices = driver.find_elements(By.XPATH, "//div[@class='fare d-block']")
+        seat_availabilities = driver.find_elements(By.XPATH, "//div[@class='seat-left m-top-30']")
+
+        for i in range(len(bus_names)):
+            bus_details.append({
+                "route_name": name,
+                "route_link": link,
+                "bus_name": bus_names[i].text,
+                "bus_type": bus_types[i].text if i < len(bus_types) else "N/A",
+                "departing_time": departing_times[i].text if i < len(departing_times) else "N/A",
+                "duration": durations[i].text if i < len(durations) else "N/A",
+                "reaching_time": reaching_times[i].text if i < len(reaching_times) else "N/A",
+                "star_rating": star_ratings[i].text if i < len(star_ratings) else "N/A",
+                "price": prices[i].text if i < len(prices) else "N/A",
+                "seat_availability": seat_availabilities[i].text if i < len(seat_availabilities) else "N/A"
+            })
+    except Exception as e:
+        print(f"Error scraping bus details: {e}")
+
+def redbus_scraper():
+    """
+    Main scraping function to collect routes and bus details.
+    """
+    links = [
+        "https://www.redbus.in/online-booking/apsrtc/?utm_source=rtchometile",
+        "https://www.redbus.in/online-booking/tsrtc/?utm_source=rtchometile",
+        "https://www.redbus.in/online-booking/ksrtc-kerala/?utm_source=rtchometile",
+        "https://www.redbus.in/online-booking/south-bengal-state-transport-corporation-sbstc/?utm_source=rtchometile",
+        "https://www.redbus.in/online-booking/west-bengal-transport-corporation?utm_source=rtchometile",
+        "https://www.redbus.in/online-booking/bihar-state-road-transport-corporation-bsrtc/?utm_source=rtchometile",
+        "https://www.redbus.in/online-booking/hrtc/?utm_source=rtchometile",
+        "https://www.redbus.in/online-booking/astc/?utm_source=rtchometile",
+        "https://www.redbus.in/online-booking/wbtc-ctc/?utm_source=rtchometile",
+    ]
+
+    # Update this list according to the expected pages for each route
+
+    # Scrape routes for each transport corporation
+    for link in links:
+        driver.get(link)
+        driver.maximize_window()
+        driver.implicitly_wait(2)
+
+        current_page = 1
+        while True:
+            scrape_routes()
+            if not next_page_operator(current_page):
+                break
+            current_page += 1
+
+    # Scrape bus details for each route
+    for route in route_details:
+        link = route['route_link']
+        name = route['route_name']
+
+        driver.get(link)
+        driver.maximize_window()
+        time.sleep(10)
+
+        click_view_buses_buttons()
+        time.sleep(5)
+
+        scroll_to_end()
+        time.sleep(3)
+
+        scrape_bus_details(link, name)
+
+    # Clear route details after scraping to avoid duplicates in the next run
+    route_details.clear()
+
+if __name__ == "__main__":
+    redbus_scraper()
+
+    # Convert bus details to DataFrame
+    df = pd.DataFrame(bus_details)
+
+    # Save bus details as a CSV file
+    df.to_csv("bus_routes.csv", index=False)
+    print("Scraping complete. Data saved to 'bus_routes.csv'.")
