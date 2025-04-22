@@ -128,7 +128,7 @@ def scrape_bus_details(link, name):
                 "departing_time": departing_times[i].text if i < len(departing_times) else "N/A",
                 "duration": durations[i].text if i < len(durations) else "N/A",
                 "reaching_time": reaching_times[i].text if i < len(reaching_times) else "N/A",
-                "star_rating": star_ratings[i].text if i < len(star_ratings) else "N/A",
+                "star_rating": star_ratings[i].text if i < len(star_ratings) else '0',
                 "price": prices[i].text if i < len(prices) else "N/A",
                 "seat_availability": seat_availabilities[i].text if i < len(seat_availabilities) else "N/A"
             })
@@ -149,7 +149,9 @@ def redbus_scraper():
         "https://www.redbus.in/online-booking/hrtc/?utm_source=rtchometile",
         "https://www.redbus.in/online-booking/astc/?utm_source=rtchometile",
         "https://www.redbus.in/online-booking/wbtc-ctc/?utm_source=rtchometile",
-    ]
+        "https://www.redbus.in/online-booking/jkrtc"
+    
+        ]
 
     # Update this list according to the expected pages for each route
 
@@ -193,5 +195,5 @@ if __name__ == "__main__":
     df = pd.DataFrame(bus_details)
 
     # Save bus details as a CSV file
-    df.to_csv("bus_routes.csv", index=False)
-    print("Scraping complete. Data saved to 'bus_routes.csv'.")
+    df.to_csv("bus_routes_CHECK.csv", index=False)
+    print("Scraping complete. Data saved to 'bus_routes_CHECK.csv'.")
